@@ -1,45 +1,47 @@
 import streamlit as st
 import pandas as pd
 
-# --- [설정] 선생님의 정보 ---
+# --- [설정] 선생님의 구글 시트 ID ---
+# 캡처 화면에서 확인된 ID입니다.
 SHEET_ID = "1ez0BaGad9zQjA2S6wF48V-Fh8S5isjq00rodbFpwUkl"
-SHEET_NAME = "Sheet1"  # 시트 이름을 영어로 바꾸신 것 반영
 
-@st.cache_data(ttl=300)  # 5분마다 자동으로 시트 내용을 새로고침합니다.
-def load_data(sheet_id, sheet_name):
-    # 영문 시트 이름은 특수문자 에러를 일으키지 않습니다.
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
+@st.cache_data(ttl=300)  # 5분마다 자동으로 시트의 새로운 내용을 가져옵니다.
+def load_data(sheet_id):
+    # 가장 에러가 없는 export 방식을 사용합니다.
+    # 이 방식은 첫 번째 시트를 자동으로 가져옵니다.
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     return pd.read_csv(url)
 
-# 페이지 레이아웃 설정
-st.set_page_config(page_title="교내 학사력 관리 시스템", layout="wide")
+# 페이지 레이아웃 및 디자인
+st.set_page_config(page_title="교내 스마트 학사력", layout="wide")
 
-st.title("📅 스마트 학사력 및 주간 업무")
+st.title("📅 실시간 연동 학사 관리 시스템")
+st.markdown("---")
 
 try:
-    # 데이터 불러오기
-    df = load_data(SHEET_ID, SHEET_NAME)
+    # 데이터 불러오기 실행
+    df = load_data(SHEET_ID)
     
-    st.success(f"✅ 구글 시트({SHEET_NAME})와 실시간으로 연결되었습니다.")
+    st.success("✅ 구글 시트 데이터 연결에 성공했습니다!")
 
-    # 화면 탭 구성
-    tab1, tab2 = st.tabs(["🗓️ 전체 학사력 조회", "📝 주간 업무 안내"])
+    # 탭 구성
+    tab1, tab2 = st.tabs(["🗓️ 전체 일정 보기", "ℹ️ 사용 안내"])
 
     with tab1:
-        st.subheader("📊 현재 등록된 학사 일정")
+        st.subheader("📊 현재 등록된 주요 학사 일정")
         if not df.empty:
-            # 표의 인덱스(번호)를 숨기고 화면에 꽉 차게 표시
+            # 표 형식으로 출력 (화면에 꽉 차게, 인덱스 번호 제외)
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:
-            st.warning("시트에 데이터가 없습니다. 내용을 입력해 주세요.")
+            st.warning("시트에 데이터가 없습니다. 구글 시트 내용을 확인해 주세요.")
 
     with tab2:
-        st.info("💡 구글 시트에서 내용을 수정하면 이 웹앱에 자동으로 반영됩니다.")
-        st.write("1. **입력:** 구글 시트 'Sheet1'에 내용을 작성하세요.")
-        st.write("2. **확인:** 웹앱 주소를 공유받은 모든 선생님이 이 화면을 보게 됩니다.")
-        st.write("3. **반영:** 수정 후 약 5분 뒤에 웹앱에 나타납니다.")
+        st.info("💡 구글 시트에서 내용을 수정하고 약 5분 뒤 새로고침(F5)을 하세요.")
+        st.write("1. **관리자:** 구글 시트에서 일정을 추가/수정/삭제합니다.")
+        st.write("2. **사용자:** 공유된 웹앱 링크를 통해 실시간 일정을 조회합니다.")
+        st.write("3. **장점:** 별도의 로그인 없이 누구나 최신 학사력을 확인할 수 있습니다.")
 
 except Exception as e:
-    st.error("❌ 연결 중 오류가 발생했습니다.")
-    st.write(f"상세 원인: {e}")
-    st.info("해결 방법: 구글 시트 공유 설정이 [링크가 있는 모든 사용자 - 뷰어]인지 다시 확인해 주세요.")
+    st.error("❌ 시트 연결 중 오류가 발생했습니다.")
+    st.write(f"상세 에러 내역: {e}")
+    st.info("체크리스트: 구글 시트의 [공유] 설정이 '링크가 있는 모든 사용자 - 뷰어'인지 확인해 주세요.")
