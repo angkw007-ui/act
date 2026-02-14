@@ -1,112 +1,108 @@
-import streamlit as st
+ㅁimport streamlit as st
 import pandas as pd
-import os
+import numpy as np
 from datetime import datetime
 
-# --- [1. 기본 설정 및 데이터 로드] ---
+# --- [1. 데이터 로드 및 환경 설정] ---
 URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRVGPDJQxWDyHoy6x7V8LFRZT2OBWY-OOdCrSwOQ3LuYkzCjpeYSU3XzQonEdPqEhVy7nsGIGPIldt8/pub?output=csv"
-PLAN_FILE = "weekly_plan.csv"
 
 st.set_page_config(page_title="구례중 통합 업무 시스템", layout="wide")
 
-# CSS를 활용한 UI 디테일 조정 (가가운데 정렬 및 폰트)
+# UI 스타일: 가운데 정렬 및 헤더 클릭 방지용 CSS
 st.markdown("""
     <style>
     .main { text-align: center; }
-    div[data-testid="stExpander"] div[role="button"] p { font-weight: bold; font-size: 1.1rem; }
-    th { background-color: #f0f2f6 !important; text-align: center !important; }
+    /* 헤더 클릭 방지 및 커서 기본값 설정 */
+    th { pointer-events: none !important; cursor: default !important; background-color: #f8f9fa !important; text-align: center !important; }
     td { text-align: center !important; }
+    div[data-testid="stDataFrame"] { font-family: 'Malgun Gothic', sans-serif; }
     </style>
     """, unsafe_allow_html=True)
 
-@st.cache_data(ttl=60)
-def load_base_data():
+@st.cache_data(ttl=10)
+def load_data():
     try:
-        # 첫 행(Unnamed)을 건너뛰고 불러옵니다.
-        df = pd.read_csv(URL, header=1) 
+        # 시트의 2번째 줄부터 읽어오기 (Unnamed 제거)
+        df = pd.read_csv(URL, header=1)
+        # 헤더 이름을 깔끔하게 정리 (숫자만 남기기 등)
+        df.columns = [c.replace(".1", "").replace(".2", "") for c in df.columns]
         return df.fillna("")
     except:
         return pd.DataFrame()
 
-def load_weekly_plans():
-    if os.path.exists(PLAN_FILE):
-        return pd.read_csv(PLAN_FILE)
-    return pd.DataFrame(columns=["날짜", "부서", "업무내용"])
+# 세션 상태를 이용해 입력된 주간 업무를 임시 저장 (실제 운영시 DB나 파일저장 연결 가능)
+if 'weekly_data' not in st.session_state:
+    st.session_state.weekly_data = []
 
-# --- [2. 주간 계획 입력 섹션 (상단 배치)] ---
+# --- [2. 주간 업무 입력 (학사력 직접 반영)] ---
 st.title("🏫 구례중 주간/월간 업무 통합 시스템")
 
-with st.expander("📅 신규 주간 업무/행사 등록 (여기를 클릭하세요)", expanded=True):
-    col1, col2, col3 = st.columns([2, 2, 4])
-    with col1:
-        # 달력에서 직접 날짜 선택
-        input_date = st.date_input("날짜 선택", datetime.now())
-    with col2:
-        input_dept = st.selectbox("담당 부서", ["교무부", "학생부", "연구부", "정보부", "행정실", "기타"])
-    with col3:
-        input_event = st.text_input("업무 및 행사명 (입력 후 엔터)")
-    
-    if st.button("🚀 학사력에 즉시 반영"):
-        if input_event:
-            new_data = pd.DataFrame([[str(input_date), input_dept, input_event]], columns=["날짜", "부서", "업무내용"])
-            df_weekly = load_weekly_plans()
-            pd.concat([df_weekly, new_data]).to_csv(PLAN_FILE, index=False, encoding='utf-8-sig')
-            st.success(f"'{input_event}' 업무가 등록되었습니다!")
-            st.rerun() # 실시간 반영을 위해 앱 재실행
-        else:
-            st.warning("내용을 입력해주세요.")
+with st.container():
+    st.subheader("📝 주간 계획 입력 (입력 시 해당 날짜 칸에 즉시 추가)")
+    c1, c2, c3, c4 = st.columns([2, 2, 4, 2])
+    with c1:
+        sel_date = st.date_input("날짜", datetime(2026, 3, 2)) # 2026학년도 기준
+    with c2:
+        sel_dept = st.selectbox("부서", ["교무", "학생", "연구", "정보", "행정"])
+    with c3:
+        sel_task = st.text_input("업무 내용", placeholder="예: 학부모 상담주간")
+    with c4:
+        if st.button("🚀 학사력 반영"):
+            if sel_task:
+                st.session_state.weekly_data.append({
+                    'month': sel_date.month,
+                    'day': sel_date.day,
+                    'text': f"[{sel_dept}] {sel_task}"
+                })
+                st.success("반반영되었습니다!")
+                st.rerun()
 
 st.markdown("---")
 
-# --- [3. 통합 학사력 출력 섹션] ---
-st.subheader("🗓️ 실시간 통합 학사력")
+# --- [3. 통합 학사력 렌더링] ---
+df = load_data()
 
-base_df = load_base_data()
-weekly_df = load_weekly_plans()
+if not df.empty:
+    # 주간 업무를 데이터프레임에 병합
+    for item in st.session_state.weekly_data:
+        target_col = f"{item['month']}월"
+        # '주요일정' 열을 찾아서 텍스트 추가 (시트 구조에 따라 열 인덱스 조정)
+        for i, col in enumerate(df.columns):
+            if target_col in col and "주요일정" in df.iloc[0, i+2 if i+2 < len(df.columns) else i]:
+                row_idx = item['day'] - 1
+                if row_idx < len(df):
+                    original_val = df.iloc[row_idx, i+2]
+                    df.iloc[row_idx, i+2] = f"{original_val} / {item['text']}" if original_val else item['text']
 
-if not base_df.empty:
-    # --- 색상 및 스타일 정의 ---
-    def apply_style(row):
+    # --- 색상 입히기 함수 ---
+    def style_calendar(row):
         styles = []
-        for i, val in enumerate(row):
-            col_name = base_df.columns[i]
-            style = 'text-align: center;'
-            
-            # 1. 열 너비 조절 (맨 앞 '일' 열은 좁게)
-            if "일" in col_name and len(col_name) <= 2:
-                style += 'width: 40px;'
-
-            # 2. 월별 배경색 (홀수월: 연녹색, 짝수월: 연파란색)
-            # 컬럼명에서 숫자 추출 (예: '3월' -> 3)
+        for col in df.columns:
+            base = 'text-align: center;'
+            # 월별 색상 (홀수: 연녹색, 짝수: 연파란색)
             try:
-                month_num = int(''.join(filter(str.isdigit, col_name)))
-                if month_num % 2 != 0:
-                    style += 'background-color: #E8F5E9;' # 연녹색
-                else:
-                    style += 'background-color: #E3F2FD;' # 연파란색
-            except:
-                pass
-
-            # 3. 연휴 및 빨간날 처리 (글자에 '날', '절', '일(빨간색)' 등이 포함될 경우)
-            holiday_keywords = ["신정", "구정", "추석", "어린이날", "크리스마스", "현충일", "광복절", "삼일절", "제헌절", "개천절", "한글날"]
-            if any(key in str(val) for key in holiday_keywords) or "휴업" in str(val):
-                style += 'background-color: #FFEBEE; color: #D32F2F; font-weight: bold;' # 연빨강 배경
-
-            styles.append(style)
+                m_num = int(''.join(filter(str.isdigit, col[:3])))
+                if m_num % 2 != 0: base += 'background-color: #E8F5E9;'
+                else: base += 'background-color: #E3F2FD;'
+            except: pass
+            
+            # 열 너비 조정 ('일' 열은 좁게)
+            if col == "일": base += 'width: 30px;'
+            
+            # 연휴/빨간날 감지 (글자에 특정 키워드 포함 시)
+            cell_val = str(row[col])
+            if any(k in cell_val for k in ["휴업", "공휴", "절", "날", "신정", "추석"]):
+                base += 'background-color: #FFEBEE; color: #D32F2F; font-weight: bold;'
+            
+            styles.append(base)
         return styles
 
     # 표 출력
     st.dataframe(
-        base_df.style.apply(apply_style, axis=1),
+        df.style.apply(style_calendar, axis=1),
         use_container_width=True,
-        height=700,
+        height=800,
         hide_index=True
     )
-    
-    # 주간 업무 별도 표시 (하단)
-    if not weekly_df.empty:
-        with st.expander("📌 최근 등록된 주간 업무 목록"):
-            st.table(weekly_df.sort_values(by="날짜", ascending=False))
-
 else:
-    st.error("구글 시트 데이터를 불러올 수 없습니다.")
+    st.warning("데이터를 불러오는 중입니다. 잠시만 기다려주세요.")
