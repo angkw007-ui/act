@@ -3,7 +3,7 @@ import pandas as pd
 
 # --- [최종 해결책] 웹에 게시된 CSV 주소 ---
 # 위 '웹에 게시' 단계에서 복사한 주소를 아래 따옴표 사이에 붙여넣으세요.
-URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRVGPDJQxWDyHoy6x7V8LFRZT2OBWY-OOdCrSwOQ3LuYkzCjpeYSU3XzQonEdPqEhVy7nsGIGPIldt8/pubhtml"
+URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRVGPDJQxWDyHoy6x7V8LFRZT2OBWY-OOdCrSwOQ3LuYkzCjpeYSU3XzQonEdPqEhVy7nsGIGPIldt8/pub?output=csv"
 
 @st.cache_data(ttl=60)
 def load_data():
@@ -23,3 +23,4 @@ try:
 except Exception as e:
     st.error("❌ 데이터를 불러올 수 없습니다.")
     st.info("💡 위 코드의 'URL' 부분에 [웹에 게시]에서 만든 CSV 주소를 정확히 넣었는지 확인해주세요.")
+
